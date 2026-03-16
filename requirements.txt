@@ -1,0 +1,6 @@
+# game/__init__.py         (empty)
+# units/__init__.py        (empty)
+# audio/__init__.py        (empty — sound stub, ready for pygame.mixer)
+
+# requirements.txt
+pygame>=2.5.0
