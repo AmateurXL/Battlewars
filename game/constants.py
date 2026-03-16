@@ -1,7 +1,8 @@
-TITLE  = "Pixel Army Battle"
-W, H   = 1280, 720
-FPS    = 60
-GY     = int(H * 0.62)
+TITLE      = "Pixel Army Battle"
+PANEL_W    = 220          # left side panel width
+W, H       = 1280, 720
+FPS        = 60
+GY         = int(H * 0.62)
 
 SKY_TOP    = (13,  19,  51)
 SKY_BOT    = (26,  58, 110)

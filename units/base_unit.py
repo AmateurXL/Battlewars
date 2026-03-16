@@ -1,6 +1,6 @@
 import math
 import random
-from game.constants import W, GY, UNIT_COLORS
+from game.constants import W, GY, PANEL_W, UNIT_COLORS
 from game.particles import Particle
 from game import debug
 from units.types import UNIT_TYPES
@@ -69,7 +69,7 @@ class Unit:
                 self.shoot_cd = self.shoot_rate
                 self._fire(direction, bullets)
 
-        self.x = max(20, min(W - 20, self.x))
+        self.x = max(PANEL_W + 12, min(W - 12, self.x))
         self.y = max(GY - 48, min(GY + 30, self.y))
 
     def _fire(self, direction: int, bullets: list) -> None:

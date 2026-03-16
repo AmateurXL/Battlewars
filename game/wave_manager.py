@@ -1,7 +1,7 @@
 import random
 from units.base_unit import Unit
 from units.types import WAVES
-from game.constants import W, WAVE_INTERVAL
+from game.constants import W, PANEL_W, WAVE_INTERVAL
 from game import debug
 
 class WaveManager:
@@ -30,10 +30,11 @@ class WaveManager:
 
     def _spawn(self, units: list) -> None:
         comp = WAVES[min(self.wave_num, len(WAVES) - 1)]
+        BF_W = W - PANEL_W
         for entry in comp:
             for i in range(entry["count"]):
-                bx = 80 + (i % 4) * 28
-                rx = W - 80 - (i % 4) * 28
+                bx = PANEL_W + 60 + (i % 4) * 28
+                rx = W - 60 - (i % 4) * 28
                 units.append(Unit("blue", entry["type"], bx))
                 units.append(Unit("red",  entry["type"], rx))
         self.wave_num  += 1

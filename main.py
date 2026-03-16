@@ -13,7 +13,7 @@ def main():
     # Fixed internal surface — all game rendering goes here
     canvas = pygame.Surface((W, H))
 
-    world = World(canvas)
+    world = World(canvas, screen)
     world.new_battle()
 
     running = True
