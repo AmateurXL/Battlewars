@@ -29,10 +29,14 @@ def main():
         world.update()
         world.draw()
 
-        # Scale canvas to current window size (pixel perfect stretch)
+        # Scale canvas to current window size
         win_w, win_h = screen.get_size()
         scaled = pygame.transform.scale(canvas, (win_w, win_h))
         screen.blit(scaled, (0, 0))
+
+        # Debug panels drawn AFTER scale — native window resolution
+        world.draw_debug(screen)
+
         pygame.display.flip()
         clock.tick(FPS)
 

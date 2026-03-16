@@ -114,6 +114,10 @@ class World:
         if self.paused:
             self._draw_paused()
 
+    def draw_debug(self, screen: pygame.Surface) -> None:
+        """Draw debug overlay at native window resolution — call after scale blit."""
+        debug.draw(screen)
+
     def _draw_paused(self) -> None:
         overlay = pygame.Surface((W, H), pygame.SRCALPHA)
         overlay.fill((0, 0, 0, 100))
