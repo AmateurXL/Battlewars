@@ -69,8 +69,8 @@ class Unit:
                 self.shoot_cd = self.shoot_rate
                 self._fire(direction, bullets)
 
-        self.x = max(12, min(W - 12, self.x))
-        self.y = max(GY - 30, min(GY + 20, self.y))
+        self.x = max(20, min(W - 20, self.x))
+        self.y = max(GY - 48, min(GY + 30, self.y))
 
     def _fire(self, direction: int, bullets: list) -> None:
         from game.bullet import Bullet   # local import breaks bullet ↔ unit cycle

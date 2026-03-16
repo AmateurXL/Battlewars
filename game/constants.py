@@ -1,9 +1,8 @@
 TITLE  = "Pixel Army Battle"
-W, H   = 720, 480
+W, H   = 1280, 720
 FPS    = 60
-GY     = int(H * 0.62)   # ground y — where units stand
+GY     = int(H * 0.62)
 
-# Colours
 SKY_TOP    = (13,  19,  51)
 SKY_BOT    = (26,  58, 110)
 GRASS      = (46, 125,  50)
@@ -11,7 +10,7 @@ GRASS_DARK = (27,  94,  32)
 GRASS_MID  = (56, 142,  60)
 TREE_TRUNK = (78,  52,  46)
 TREE_LEAF  = (46, 125,  50)
-DIVIDER    = (255, 255, 0, 30)   # RGBA
+DIVIDER    = (255, 255, 0, 30)
 SKIN       = (245, 203, 167)
 STEEL      = (85,  85,  85)
 WHEEL      = (93,  64,  55)
@@ -19,17 +18,14 @@ BARREL     = (55,  71,  79)
 WHITE      = (255, 255, 255)
 BLACK      = (0,   0,   0)
 
-# UI
 UI_BG      = (20,  20,  40)
 GOLD       = (255, 215,   0)
 HP_GREEN   = (76, 175,  80)
 HP_ORANGE  = (255, 152,   0)
 HP_RED     = (244,  67,  54)
 
-# Wave timing (frames)
 WAVE_INTERVAL = 420
 
-# Unit colour palettes  {team: (body, highlight)}
 UNIT_COLORS = {
     "soldier":  {"blue": ((21,  101, 192), (79, 195, 247)),
                  "red":  ((183,  28,  28), (239, 154, 154))},

@@ -32,8 +32,8 @@ class WaveManager:
         comp = WAVES[min(self.wave_num, len(WAVES) - 1)]
         for entry in comp:
             for i in range(entry["count"]):
-                bx = 60 + (i % 3) * 18
-                rx = W - 60 - (i % 3) * 18
+                bx = 80 + (i % 4) * 28
+                rx = W - 80 - (i % 4) * 28
                 units.append(Unit("blue", entry["type"], bx))
                 units.append(Unit("red",  entry["type"], rx))
         self.wave_num  += 1

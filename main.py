@@ -4,11 +4,16 @@ from game.constants import W, H, FPS, TITLE
 
 def main():
     pygame.init()
-    screen = pygame.display.set_mode((W, H))
+
+    # Start at native resolution — resizable from here
+    screen = pygame.display.set_mode((W, H), pygame.RESIZABLE)
     pygame.display.set_caption(TITLE)
     clock = pygame.time.Clock()
 
-    world = World(screen)
+    # Fixed internal surface — all game rendering goes here
+    canvas = pygame.Surface((W, H))
+
+    world = World(canvas)
     world.new_battle()
 
     running = True
@@ -16,10 +21,18 @@ def main():
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_F11:
+                    pygame.display.toggle_fullscreen()
             world.handle_event(event)
 
         world.update()
         world.draw()
+
+        # Scale canvas to current window size (pixel perfect stretch)
+        win_w, win_h = screen.get_size()
+        scaled = pygame.transform.scale(canvas, (win_w, win_h))
+        screen.blit(scaled, (0, 0))
         pygame.display.flip()
         clock.tick(FPS)
 
