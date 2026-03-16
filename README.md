@@ -27,7 +27,7 @@ Battlewars/
 ├── game/
 │   ├── __init__.py
 │   ├── constants.py         ← All game constants and colour palettes
-│   ├── world.py             ← Main game loop controller
+│   ├── world.py             ← Main game loop controller + side panel + buttons
 │   ├── renderer.py          ← All drawing functions
 │   ├── wave_manager.py      ← Wave spawning and timing
 │   ├── bullet.py            ← Bullet logic and hit detection
@@ -49,13 +49,13 @@ Battlewars/
 ## File Descriptions
 
 ### `main.py`
-Entry point. Initialises pygame, creates a resizable game window starting at 1280x720, renders all game logic to a fixed internal canvas, then scales it to the current window size every frame for pixel-perfect scaling. Supports fullscreen toggle via F11.
+Entry point. Initialises pygame, creates a resizable game window starting at 1280x720, renders all game logic to a fixed internal canvas, then scales it to the current window size every frame for pixel-perfect scaling. Debug panels are drawn after the scale blit at native window resolution for crisp text. Supports fullscreen toggle via F11.
 
 ---
 
 ### `game/constants.py`
 Pure data file — no imports. Defines all shared constants used across the project:
-- Window size (`W=1280`, `H=720`, `FPS=60`, `GY`)
+- Window size (`W=1280`, `H=720`, `FPS=60`, `GY`, `PANEL_W=220`)
 - Colour tuples for terrain, UI, HP bars, unit palettes
 - `WAVE_INTERVAL` — frames between auto wave spawns
 - `UNIT_COLORS` — per-team colour pairs for each unit type
@@ -63,26 +63,38 @@ Pure data file — no imports. Defines all shared constants used across the proj
 ---
 
 ### `game/world.py`
-Top-level game state controller. Owns all lists (`units`, `bullets`, `particles`) and orchestrates every subsystem each frame.
+Top-level game state controller. Owns all lists (`units`, `bullets`, `particles`), the side panel, and all buttons. Orchestrates every subsystem each frame.
+
+**Button class** — lightweight clickable button with hover state, drawn directly onto the canvas. Mouse coordinates are scaled from window size back to canvas coordinates so clicks register correctly at any window size.
 
 Key methods:
 | Method | Purpose |
 |---|---|
 | `new_battle()` | Resets all state, clears debug logs, spawns wave 1 |
-| `handle_event()` | Keyboard input (SPACE pause, N new battle, W force wave) |
+| `handle_event()` | Keyboard + scaled mouse input for buttons |
 | `update()` | Ticks units, bullets, particles, wave manager, victory check |
-| `draw()` | Calls renderer for all game objects, HUD, and debug overlay |
+| `draw()` | Clears canvas, draws side panel, terrain, units, HUD |
+| `_draw_side_panel()` | Renders the left panel with all stats and buttons |
+| `draw_debug()` | Draws debug overlay at native window resolution after scale |
+
+**Side panel contents (220px, left side):**
+- BATTLEWARS title
+- Wave number + progress bar
+- Live unit counts (Blue / Red / Total)
+- Per-type unit breakdown (soldier, archer, cavalry, cannon)
+- 5 action buttons
+- Keyboard shortcut reference
 
 ---
 
 ### `game/renderer.py`
-All pygame drawing code. Stateless functions that take a surface and draw to it. Keeps all visual logic out of game logic classes.
+All pygame drawing code. Stateless functions that take a surface and draw to it. The battlefield starts at `BX = PANEL_W` and spans `BW = W - PANEL_W` pixels wide.
 
 Key functions:
 | Function | Purpose |
 |---|---|
 | `init_fonts()` | Loads monospace fonts (SM/MD/LG) once on startup |
-| `draw_terrain()` | Sky gradient, ground layers, trees, stars, divider line |
+| `draw_terrain()` | Sky gradient, ground layers, trees, stars, divider line — offset by BX |
 | `draw_unit()` | Dispatches to per-type drawers with flash effect |
 | `_draw_soldier()` | Helmet, belt, boots, chest armour, animated legs |
 | `_draw_archer()` | Hood, quiver with arrows, bow arc + bowstring |
@@ -91,25 +103,25 @@ Key functions:
 | `draw_shadow()` | Alpha shadow beneath each unit |
 | `draw_bullet()` | Renders bullets, arrows (with shaft), cannonballs |
 | `draw_particle()` | Alpha-faded pixel particles with transparent clear |
-| `draw_hud()` | Unit counts, wave number, messages (SM/MD/LG fonts) |
-| `draw_wave_timer()` | Gold progress bar at top of screen |
-| `draw_controls_hint()` | Key hint bar above debug panels |
+| `draw_hud()` | Wave announce label + result message centered on battlefield |
+| `draw_wave_timer()` | Gold progress bar centered above battlefield |
+| `draw_controls_hint()` | No-op — hints live in side panel |
 
 ---
 
 ### `game/debug.py`
-Always-visible dual-panel debug overlay rendered at the bottom of the screen. Two independent log queues with colour-coded levels and automatic text wrapping.
+Always-visible dual-panel debug overlay rendered at native window resolution (after canvas scale), ensuring crisp readable text at any window size.
 
 | Panel | Content |
 |---|---|
 | Left — Game Events | Unit fires, hits, deaths, wave spawns, battle results |
 | Right — Debug / System | Pause/resume, unit counts, forced waves |
 
-Colour coding:
-- 🔵 Blue (`ok`) — fire events, wave spawns, victories
-- 🟠 Amber (`warn`) — hits, pause, state changes
-- 🔴 Red (`err`) — deaths, errors
-- Gray (`info`) — general system info
+Features:
+- Automatic text wrapping for long messages
+- `▲ more above` indicator when lines overflow the panel
+- Panel width and position calculated dynamically from window size
+- Colour-coded log levels: 🔵 ok, 🟠 warn, 🔴 err, gray info
 
 Key functions:
 | Function | Purpose |
@@ -117,12 +129,12 @@ Key functions:
 | `log_game(msg, level)` | Append to game events panel |
 | `log_debug(msg, level)` | Append to debug/system panel |
 | `clear()` | Wipe both logs (called on new battle) |
-| `draw(surf)` | Render both panels — always called, always visible |
+| `draw(surf)` | Render both panels at native window resolution |
 
 ---
 
 ### `game/wave_manager.py`
-Manages wave progression. Tracks wave number and frame timer. Spawns both blue and red units symmetrically from `WAVES` config across 4 columns.
+Manages wave progression. Tracks wave number and frame timer. Spawns both blue and red units symmetrically from `WAVES` config, offset to start after the side panel.
 
 Key properties/methods:
 | Item | Purpose |
@@ -130,7 +142,7 @@ Key properties/methods:
 | `wave_num` | Current wave index |
 | `progress` | Float 0–1 for the wave timer bar |
 | `update()` | Auto-spawns next wave when timer expires |
-| `force_next()` | Manual wave skip (W key) |
+| `force_next()` | Manual wave skip (W key or button) |
 
 ---
 
@@ -147,12 +159,12 @@ Key methods:
 ---
 
 ### `game/particles.py`
-Minimal particle class. Each particle has position, velocity, colour, and a life counter. `update()` returns `False` when life hits zero so the world list can filter it out in one line. Draw uses `SRCALPHA` with explicit transparent clear to prevent ghost rectangles.
+Minimal particle class. Each particle has position, velocity, colour, and a life counter. `update()` returns `False` when life hits zero. Draw uses `SRCALPHA` with explicit transparent clear to prevent ghost rectangles.
 
 ---
 
 ### `units/base_unit.py`
-The `Unit` class — handles all per-unit state, AI behaviour, and combat.
+The `Unit` class — handles all per-unit state, AI behaviour, and combat. Units are clamped to stay within the battlefield (right of `PANEL_W`).
 
 Key methods:
 | Method | Purpose |
@@ -190,30 +202,32 @@ Empty stub. Reserved for `pygame.mixer` sound integration. The sound design spec
 ---
 
 ## Controls
-| Key | Action |
+| Input | Action |
 |---|---|
 | `SPACE` | Pause / resume |
 | `N` | New battle |
 | `W` | Force next wave |
 | `F11` | Toggle fullscreen |
 | `Alt+F4` / close | Quit |
+| Mouse click | Side panel buttons |
 
 ---
 
 ## Rendering Architecture
 ```
-pygame window (resizable)
+pygame window (resizable, starts 1280x720)
     └── canvas (fixed 1280x720)
-            ├── draw_terrain()
+            ├── screen.fill()            ← clear to dark background
+            ├── _draw_side_panel()       ← 220px left panel
+            ├── draw_terrain()           ← starts at x=220 (BX)
             ├── draw_wave_timer()
-            ├── draw_unit() × n      ← dead units first, then alive
+            ├── draw_unit() × n          ← dead units first, then alive
             ├── draw_bullet() × n
             ├── draw_particle() × n
-            ├── draw_hud()
-            ├── draw_controls_hint()
-            └── debug.draw()         ← always on top
+            └── draw_hud()
+    └── pygame.transform.scale → screen
+    └── debug.draw(screen)               ← native res, always on top
 ```
-All game logic operates in canvas coordinates. `pygame.transform.scale` handles window sizing — no coordinate remapping needed.
 
 ---
 
