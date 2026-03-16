@@ -3,6 +3,7 @@ from game import renderer
 from game import debug
 from game.wave_manager import WaveManager
 from game.constants import W, H, GY, PANEL_W, GOLD, UNIT_COLORS
+from units.engineer import Engineer
 
 
 # ── Button ───────────────────────────────────────────────────
@@ -34,18 +35,22 @@ class Button:
 # ── World ────────────────────────────────────────────────────
 class World:
     def __init__(self, screen: pygame.Surface, window: pygame.Surface):
-        self.screen  = screen   # internal canvas
-        self.window  = window   # real pygame window (for mouse scaling)
+        self.screen     = screen    # internal canvas (fixed 1280×720)
+        self.window     = window    # real pygame window (for mouse scaling)
         self.units:     list = []
         self.bullets:   list = []
         self.particles: list = []
+        self.covers:    list = []   # CoverObject list — shared with engineers
         self.waves      = WaveManager()
         self.paused     = False
         self.game_over  = False
         self.msg        = ""
         self.label_timer = 0
+        self._frame     = 0         # global frame counter for damage tracking
         self._font_sm: pygame.font.Font | None = None
         self._font_md: pygame.font.Font | None = None
+        # Eagerly initialise fonts so Pylance knows they are never None after __init__
+        self._get_fonts()
         self._buttons:  list[Button] = []
         renderer.init_fonts()
         self._build_buttons()
@@ -56,7 +61,7 @@ class World:
         BH   = 30
         GAP  = 10
         bx   = 10
-        by   = 180    # start below the stats block
+        by   = 210    # start below the stats block (extended for engineer row)
 
         labels_actions = [
             ("New Battle",  self.new_battle),
@@ -78,7 +83,7 @@ class World:
 
     def _force_wave(self) -> None:
         if not self.game_over:
-            self.waves.force_next(self.units)
+            self.waves.force_next(self.units, self.covers)
             self.label_timer = 120
             debug.log_debug("Wave forced by player", "warn")
 
@@ -91,14 +96,16 @@ class World:
         self.units.clear()
         self.bullets.clear()
         self.particles.clear()
+        self.covers.clear()
         self.waves.reset()
-        self.paused    = False
-        self.game_over = False
-        self.msg       = ""
+        self.paused     = False
+        self.game_over  = False
+        self.msg        = ""
+        self._frame     = 0
         self._buttons[1].label = "Pause"
         debug.clear()
         debug.log_game("--- New Battle ---", "warn")
-        self.waves.force_next(self.units)
+        self.waves.force_next(self.units, self.covers)
         self.label_timer = 120
 
     # ── Input ────────────────────────────────────────────────
@@ -123,18 +130,55 @@ class World:
     def update(self) -> None:
         if self.paused or self.game_over:
             return
+
+        self._frame += 1
+
+        # ── Tick all units ────────────────────────────────────
         for u in self.units:
             u.update(self.units, self.bullets)
+
+        # ── Notify engineers of ally hits this frame ──────────
+        # Any unit whose flash timer was just set to 6 was hit this tick.
+        engineers = [u for u in self.units
+                     if hasattr(u, "notify_ally_hit") and not u.dead]
+        if engineers:
+            for u in self.units:
+                if (not u.dead
+                        and not hasattr(u, "notify_ally_hit")  # not an engineer itself
+                        and u.flash == 6):                      # just hit this frame
+                    for eng in engineers:
+                        if eng.team == u.team:
+                            eng.notify_ally_hit(self._frame)
+                            debug.log_debug(
+                                f"[WORLD] eng({eng.team}) notified: "
+                                f"ally {u.unit_type} hit at frame {self._frame}",
+                                "info"
+                            )
+
+        # ── Bullet lifecycle ──────────────────────────────────
         self.bullets = [b for b in self.bullets if b.alive]
         for b in self.bullets:
-            b.update(self.units, self.particles)
-        self.bullets   = [b for b in self.bullets if b.alive]
+            b.update(self.units, self.particles, self.covers)
+        self.bullets = [b for b in self.bullets if b.alive]
+
+        # ── Particles ─────────────────────────────────────────
         self.particles = [p for p in self.particles if p.update()]
-        spawned = self.waves.update(self.units, self.game_over)
+
+        # ── Prune dead cover objects ──────────────────────────
+        before = len(self.covers)
+        self.covers = [c for c in self.covers if c.alive]
+        pruned = before - len(self.covers)
+        if pruned:
+            debug.log_debug(f"[WORLD] pruned {pruned} destroyed cover object(s)", "warn")
+
+        # ── Wave manager ──────────────────────────────────────
+        spawned = self.waves.update(self.units, self.covers, self.game_over)
         if spawned:
             self.label_timer = 120
+
         if self.label_timer > 0:
             self.label_timer -= 1
+
         self._check_victory()
 
     def _check_victory(self) -> None:
@@ -143,26 +187,37 @@ class World:
         blue_alive = any(u.team == "blue" and not u.dead for u in self.units)
         red_alive  = any(u.team == "red"  and not u.dead for u in self.units)
         if not blue_alive and not red_alive:
-            self.game_over = True; self.msg = "DRAW!"
+            self.game_over = True
+            self.msg = "DRAW!"
             debug.log_game("Result: DRAW", "warn")
         elif not blue_alive:
-            self.game_over = True; self.msg = "RED ARMY WINS!"
+            self.game_over = True
+            self.msg = "RED ARMY WINS!"
             debug.log_game("Result: RED WINS", "err")
         elif not red_alive:
-            self.game_over = True; self.msg = "BLUE ARMY WINS!"
+            self.game_over = True
+            self.msg = "BLUE ARMY WINS!"
             debug.log_game("Result: BLUE WINS", "ok")
 
     # ── Draw ─────────────────────────────────────────────────
     def draw(self) -> None:
-        self.screen.fill((18, 18, 35))          # clear canvas
-        self._draw_side_panel()                  # panel first
-        renderer.draw_terrain(self.screen)       # terrain right of panel
+        self.screen.fill((18, 18, 35))
+        self._draw_side_panel()
+        renderer.draw_terrain(self.screen)
+
+        # Cover objects drawn after terrain, before units
+        renderer.draw_cover(self.screen, self.covers)
+
         renderer.draw_wave_timer(self.screen, self.waves.progress, self.waves.wave_num)
 
+        # Dead units first, then alive (so alive units render on top)
         for u in self.units:
-            if u.dead:  renderer.draw_unit(self.screen, u)
+            if u.dead:
+                renderer.draw_unit(self.screen, u)
         for u in self.units:
-            if not u.dead: renderer.draw_unit(self.screen, u)
+            if not u.dead:
+                renderer.draw_unit(self.screen, u)
+
         for b in self.bullets:
             renderer.draw_bullet(self.screen, b)
         for p in self.particles:
@@ -171,25 +226,29 @@ class World:
         label = self.waves.label if self.label_timer > 0 else ""
         renderer.draw_hud(self.screen, self.units, self.waves.wave_num, label, self.msg)
 
+        # Side panel drawn last so it always sits on top of battlefield edge
         self._draw_side_panel()
 
         if self.paused:
             self._draw_paused()
 
-    def _get_fonts(self):
+    # ── Side panel ───────────────────────────────────────────
+    def _get_fonts(self) -> tuple[pygame.font.Font, pygame.font.Font]:
         if not self._font_sm:
             self._font_sm = pygame.font.SysFont("monospace", 12)
             self._font_md = pygame.font.SysFont("monospace", 14)
+        assert self._font_sm is not None
+        assert self._font_md is not None
         return self._font_sm, self._font_md
 
     def _draw_side_panel(self) -> None:
         fsm, fmd = self._get_fonts()
         surf = self.screen
 
-        # Panel background
-        pygame.draw.rect(surf, (18, 18, 35),  (0, 0, PANEL_W, H))
-        pygame.draw.rect(surf, (60, 60, 90),  (0, 0, PANEL_W, H), 1)
-        pygame.draw.line(surf, (60, 60, 90),  (PANEL_W, 0), (PANEL_W, H), 1)
+        # Panel background + border
+        pygame.draw.rect(surf, (18, 18, 35), (0, 0, PANEL_W, H))
+        pygame.draw.rect(surf, (60, 60, 90), (0, 0, PANEL_W, H), 1)
+        pygame.draw.line(surf, (60, 60, 90), (PANEL_W, 0), (PANEL_W, H), 1)
 
         # ── Title ────────────────────────────────────────────
         title = fmd.render("BATTLEWARS", True, GOLD)
@@ -197,7 +256,7 @@ class World:
         pygame.draw.line(surf, (60,60,90), (10, 34), (PANEL_W-10, 34), 1)
 
         # ── Wave info ────────────────────────────────────────
-        wave_lbl  = fsm.render(f"Wave  {self.waves.wave_num} / 5", True, (200,200,200))
+        wave_lbl = fsm.render(f"Wave  {self.waves.wave_num} / 5", True, (200,200,200))
         surf.blit(wave_lbl, (10, 44))
 
         # Wave progress bar
@@ -208,44 +267,51 @@ class World:
 
         # ── Unit counts ──────────────────────────────────────
         pygame.draw.line(surf, (60,60,90), (10, 80), (PANEL_W-10, 80), 1)
-        blue = sum(1 for u in self.units if u.team=="blue" and not u.dead)
-        red  = sum(1 for u in self.units if u.team=="red"  and not u.dead)
-        total= len([u for u in self.units if not u.dead])
+        blue  = sum(1 for u in self.units if u.team=="blue" and not u.dead)
+        red   = sum(1 for u in self.units if u.team=="red"  and not u.dead)
+        total = sum(1 for u in self.units if not u.dead)
 
-        b_lbl = fsm.render(f"Blue  {blue:>3}", True, (79,195,247))
-        r_lbl = fsm.render(f"Red   {red:>3}",  True, (239,83,80))
-        t_lbl = fsm.render(f"Total {total:>3}", True, (180,180,180))
-        surf.blit(b_lbl, (10, 90))
-        surf.blit(r_lbl, (10, 107))
-        surf.blit(t_lbl, (10, 124))
+        surf.blit(fsm.render(f"Blue  {blue:>3}", True, (79,195,247)),  (10, 90))
+        surf.blit(fsm.render(f"Red   {red:>3}",  True, (239,83,80)),   (10, 107))
+        surf.blit(fsm.render(f"Total {total:>3}", True, (180,180,180)), (10, 124))
 
         # ── Unit type breakdown ───────────────────────────────
         pygame.draw.line(surf, (60,60,90), (10, 145), (PANEL_W-10, 145), 1)
-        types = ["soldier","archer","cavalry","cannon"]
+        types = ["soldier", "archer", "cavalry", "cannon", "engineer"]
         ty = 152
         for ut in types:
-            bc = sum(1 for u in self.units if u.unit_type==ut and u.team=="blue" and not u.dead)
-            rc = sum(1 for u in self.units if u.unit_type==ut and u.team=="red"  and not u.dead)
+            bc  = sum(1 for u in self.units if u.unit_type==ut and u.team=="blue" and not u.dead)
+            rc  = sum(1 for u in self.units if u.unit_type==ut and u.team=="red"  and not u.dead)
             col = UNIT_COLORS[ut]["blue"][1]
-            lbl = fsm.render(f"{ut:<8} B{bc:>2}  R{rc:>2}", True, col)
-            surf.blit(lbl, (10, ty))
+            surf.blit(fsm.render(f"{ut:<8} B{bc:>2}  R{rc:>2}", True, col), (10, ty))
             ty += 15
 
-        # ── Buttons ──────────────────────────────────────────
+        # ── Cover object count ────────────────────────────────
         pygame.draw.line(surf, (60,60,90), (10, ty+2), (PANEL_W-10, ty+2), 1)
-        for btn in self._buttons:
+        ty += 8
+        alive_covers = [c for c in self.covers if c.alive]
+        blue_covers  = sum(1 for c in alive_covers if c.team=="blue")
+        red_covers   = sum(1 for c in alive_covers if c.team=="red")
+        surf.blit(fsm.render(f"Cover  B{blue_covers:>2}  R{red_covers:>2}",
+                             True, (144,164,174)), (10, ty))
+        ty += 15
+
+        # ── Buttons ──────────────────────────────────────────
+        pygame.draw.line(surf, (60,60,90), (10, ty+4), (PANEL_W-10, ty+4), 1)
+        # Reposition buttons dynamically below stats
+        BH  = 30
+        GAP = 10
+        for i, btn in enumerate(self._buttons):
+            btn.rect.y = ty + 10 + i * (BH + GAP)
             btn.draw(surf, fsm)
 
         # ── Keyboard hints ───────────────────────────────────
-        hints = [("SPACE","Pause"),("N","New Battle"),("W","Next Wave")]
+        hints = [("SPACE","Pause"), ("N","New Battle"), ("W","Next Wave")]
         hy = H - 70
-        hint_hdr = fsm.render("Shortcuts", True, (100,100,130))
-        surf.blit(hint_hdr, (10, hy - 14))
+        surf.blit(fsm.render("Shortcuts", True, (100,100,130)), (10, hy - 14))
         for key, desc in hints:
-            k_surf = fsm.render(f"[{key}]", True, GOLD)
-            d_surf = fsm.render(desc, True, (140,140,160))
-            surf.blit(k_surf, (10,  hy))
-            surf.blit(d_surf, (60,  hy))
+            surf.blit(fsm.render(f"[{key}]", True, GOLD),        (10, hy))
+            surf.blit(fsm.render(desc,        True, (140,140,160)), (60, hy))
             hy += 14
 
     def draw_debug(self, screen: pygame.Surface) -> None:

@@ -29,11 +29,22 @@ class Unit:
         self.death_timer = 0
         self.flash       = 0
 
-        c = UNIT_COLORS[unit_type][team]
+        # Guard: fall back to a neutral colour if unit_type has no palette entry.
+        # This protects subclasses (e.g. Engineer) that call super().__init__()
+        # before constants.py has been updated, and makes future unit types safe.
+        if unit_type in UNIT_COLORS:
+            c = UNIT_COLORS[unit_type][team]
+        else:
+            debug.log_debug(
+                f"[UNIT] no UNIT_COLORS entry for '{unit_type}' "
+                f"— using fallback grey", "warn"
+            )
+            c = ((120, 120, 120), (180, 180, 180))
+
         self.color1 = c[0]
         self.color2 = c[1]
 
-    # ── AI ──────────────────────────────────────────────────
+    # ── AI ───────────────────────────────────────────────────
     def nearest_enemy(self, all_units: list) -> "Unit | None":
         enemies = [u for u in all_units if u.team != self.team and not u.dead]
         if not enemies:
@@ -54,9 +65,9 @@ class Unit:
         if not target:
             return
 
-        dx   = target.x - self.x
-        dy   = target.y - self.y
-        dist = math.hypot(dx, dy)
+        dx        = target.x - self.x
+        dy        = target.y - self.y
+        dist      = math.hypot(dx, dy)
         direction = 1 if dx > 0 else -1
 
         if dist > self.range:
@@ -88,12 +99,22 @@ class Unit:
             is_arrow = (self.unit_type == "archer"),
             color1   = self.color1,
         ))
+        debug.log_game(
+            f"FIRE [{self.team}] {self.unit_type} "
+            f"dir={'→' if direction > 0 else '←'} "
+            f"pos=({self.x:.0f},{self.y:.0f})",
+            "ok"
+        )
 
-    # ── Combat ──────────────────────────────────────────────
+    # ── Combat ───────────────────────────────────────────────
     def take_damage(self, dmg: int, particles: list) -> None:
         self.hp   -= dmg
         self.flash = 6
-        debug.log_game(f"HIT [{self.team}] {self.unit_type} hp={self.hp}/{self.max_hp}", "warn")
+        debug.log_game(
+            f"HIT [{self.team}] {self.unit_type} "
+            f"hp={self.hp}/{self.max_hp} dmg={dmg}",
+            "warn"
+        )
         if self.hp <= 0:
             self.dead = True
             debug.log_game(f"DEATH [{self.team}] {self.unit_type}", "err")
