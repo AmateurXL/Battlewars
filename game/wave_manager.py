@@ -2,6 +2,7 @@ import random
 from units.base_unit import Unit
 from units.types import WAVES
 from game.constants import W, WAVE_INTERVAL
+from game import debug
 
 class WaveManager:
     def __init__(self):
@@ -39,6 +40,8 @@ class WaveManager:
         self.wave_timer = 0
         names = ", ".join(f'{e["count"]}x {e["type"]}' for e in comp)
         self.label = f"Wave {self.wave_num} — {names}"
+        debug.log_game(f"Wave {self.wave_num} spawned: {names}", "ok")
+        debug.log_debug(f"Total units: {len(units)}", "info")
 
     @property
     def progress(self) -> float:

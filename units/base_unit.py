@@ -2,6 +2,7 @@ import math
 import random
 from game.constants import W, GY, UNIT_COLORS
 from game.particles import Particle
+from game import debug
 from units.types import UNIT_TYPES
 
 
@@ -92,8 +93,10 @@ class Unit:
     def take_damage(self, dmg: int, particles: list) -> None:
         self.hp   -= dmg
         self.flash = 6
+        debug.log_game(f"HIT [{self.team}] {self.unit_type} hp={self.hp}/{self.max_hp}", "warn")
         if self.hp <= 0:
             self.dead = True
+            debug.log_game(f"DEATH [{self.team}] {self.unit_type}", "err")
             for _ in range(8):
                 a   = random.uniform(0, math.tau)
                 spd = random.uniform(1, 3)

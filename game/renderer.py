@@ -99,12 +99,6 @@ def _draw_infantry(surf, px, py, c1, c2, team, unit_type, anim_frame, state):
 
 
 def draw_unit(surf, unit) -> None:
-    if unit.flash > 0 and unit.flash % 2 == 0:
-        # white flash on hit
-        flash_surf = pygame.Surface((20, 30), pygame.SRCALPHA)
-        flash_surf.fill((255, 255, 255, 120))
-        surf.blit(flash_surf, (int(unit.x) - 10, int(unit.y) - 20))
-
     px, py = int(unit.x), int(unit.y)
     c1, c2 = unit.color1, unit.color2
 
@@ -112,6 +106,11 @@ def draw_unit(surf, unit) -> None:
         pygame.draw.rect(surf, c1,   (px-7, py+2, 13, 4))
         pygame.draw.rect(surf, SKIN, (px+5, py+1,  4, 4))
         return
+
+    if unit.flash > 0 and unit.flash % 2 == 0:
+        flash_surf = pygame.Surface((20, 30), pygame.SRCALPHA)
+        flash_surf.fill((255, 255, 255, 80))
+        surf.blit(flash_surf, (px - 10, py - 20))
 
     if unit.unit_type == "cavalry":
         _draw_cavalry(surf, px, py, c1, c2, unit.team)
@@ -140,8 +139,11 @@ def draw_bullet(surf, bullet) -> None:
 # ── Particles ────────────────────────────────────────────────
 def draw_particle(surf, p) -> None:
     alpha = int(255 * p.life / 35)
+    if alpha <= 0:
+        return
     s = pygame.Surface((3, 3), pygame.SRCALPHA)
-    s.fill((*p.color, alpha))
+    s.fill((0, 0, 0, 0))          # clear to transparent first
+    pygame.draw.rect(s, (*p.color, alpha), (0, 0, 3, 3))
     surf.blit(s, (int(p.x) - 1, int(p.y) - 1))
 
 
@@ -182,4 +184,4 @@ def draw_hud(surf, units, wave_num, label, msg) -> None:
 
 def draw_controls_hint(surf) -> None:
     hint = FONT_SM.render("SPACE pause   N new battle   W force wave", True, (120, 120, 120))
-    surf.blit(hint, (W // 2 - hint.get_width() // 2, H - 16))
+    surf.blit(hint, (W // 2 - hint.get_width() // 2, H - 138))

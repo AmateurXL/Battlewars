@@ -1,5 +1,6 @@
 import pygame
 from game import renderer
+from game import debug
 from game.wave_manager import WaveManager
 from game.constants import W, H, GY
 
@@ -25,6 +26,8 @@ class World:
         self.paused    = False
         self.game_over = False
         self.msg       = ""
+        debug.clear()
+        debug.log_game("--- New Battle ---", "warn")
         self.waves.force_next(self.units)
         self.label_timer = 120
 
@@ -33,11 +36,16 @@ class World:
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_SPACE:
                 self.paused = not self.paused
+                debug.log_debug(f"{'PAUSED' if self.paused else 'RESUMED'}", "warn")
             elif event.key == pygame.K_n:
                 self.new_battle()
             elif event.key == pygame.K_w and not self.game_over:
                 self.waves.force_next(self.units)
                 self.label_timer = 120
+                debug.log_debug("Wave forced by player", "warn")
+            elif event.key == pygame.K_F3:
+                debug.toggle()
+                debug.log_debug(f"Debug overlay {'ON' if debug.is_visible() else 'OFF'}", "info")
 
     # ── Update ───────────────────────────────────────────────
     def update(self) -> None:
@@ -71,12 +79,15 @@ class World:
         if not blue_alive and not red_alive:
             self.game_over = True
             self.msg = "DRAW!"
+            debug.log_game("Result: DRAW", "warn")
         elif not blue_alive:
             self.game_over = True
             self.msg = "RED ARMY WINS!"
+            debug.log_game("Result: RED WINS", "err")
         elif not red_alive:
             self.game_over = True
             self.msg = "BLUE ARMY WINS!"
+            debug.log_game("Result: BLUE WINS", "ok")
 
     # ── Draw ─────────────────────────────────────────────────
     def draw(self) -> None:
@@ -98,6 +109,7 @@ class World:
         label = self.waves.label if self.label_timer > 0 else ""
         renderer.draw_hud(self.screen, self.units, self.waves.wave_num, label, self.msg)
         renderer.draw_controls_hint(self.screen)
+        debug.draw(self.screen)
 
         if self.paused:
             self._draw_paused()
